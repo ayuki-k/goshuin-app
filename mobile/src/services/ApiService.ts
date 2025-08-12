@@ -43,7 +43,7 @@ class ApiService {
     return this.makeRequest<ShrineTemple>(`/shrines-temples/${id}`);
   }
 
-  async searchByLocation(lat: number, lng: number, radius: number = 10): Promise<ShrineTemple[]> {
+  async searchByLocation(lat: number, lng: number, radius: number = 5): Promise<ShrineTemple[]> {
     const queryParams = new URLSearchParams({
       lat: lat.toString(),
       lng: lng.toString(),
@@ -51,6 +51,19 @@ class ApiService {
     });
 
     return this.makeRequest<ShrineTemple[]>(`/search/nearby?${queryParams.toString()}`);
+  }
+
+  async getNearbyTemples(lat: number, lng: number, radius: number = 5): Promise<ShrineTemple[]> {
+    console.log(`ApiService: Getting nearby temples within ${radius}km of (${lat}, ${lng})`);
+    
+    try {
+      const result = await this.searchByLocation(lat, lng, radius);
+      console.log(`ApiService: Found ${result.length} temples nearby`);
+      return result;
+    } catch (error) {
+      console.error('ApiService: Error getting nearby temples:', error);
+      throw error;
+    }
   }
 }
 

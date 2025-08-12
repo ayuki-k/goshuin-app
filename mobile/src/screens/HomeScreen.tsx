@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { SearchBar } from '../components/SearchBar';
-import { OpenStreetMapView } from '../components/OpenStreetMapView';
+import { SimpleMapView } from '../components/SimpleMapView';
 import { ShrineTempleCard } from '../components/ShrineTempleCard';
 import { GoshuinImageModal } from '../components/GoshuinImageModal';
 import { ShrineTemple, SearchFilters } from '../types';
@@ -34,6 +34,22 @@ export const HomeScreen: React.FC = () => {
   const [currentLocation, setCurrentLocation] = useState(TOKYO_STATION);
   const [networkError, setNetworkError] = useState(false);
 
+  // 5km圏内の寺院・神社を自動取得
+  const loadNearbyTemples = async (latitude: number, longitude: number) => {
+    try {
+      setLoading(true);
+      const nearbyTemples = await apiService.getNearbyTemples(latitude, longitude, 5);
+      setShrineTemples(nearbyTemples);
+      console.log(`HomeScreen: Loaded ${nearbyTemples.length} nearby temples within 5km`);
+    } catch (error) {
+      console.error('HomeScreen: Error loading nearby temples:', error);
+      // エラー時は空の配列を設定（地図は表示される）
+      setShrineTemples([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 起動時の位置情報取得
   const requestLocationAtStartup = async () => {
     const hasPermission = await requestLocationPermission();
@@ -47,9 +63,12 @@ export const HomeScreen: React.FC = () => {
     }
 
     Geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation({ latitude, longitude });
+        
+        // 位置情報取得成功時に5km圏内の寺院・神社を自動取得
+        await loadNearbyTemples(latitude, longitude);
       },
       (error) => {
         console.log('Location error:', error);
@@ -158,7 +177,8 @@ export const HomeScreen: React.FC = () => {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyText}>
-        地名を検索して御朱印をもらえる{'\n'}神社・寺院を見つけましょう
+        現在地から5km圏内の神社・寺院が{'\n'}自動で表示されます{'\n\n'}
+        地名を検索してより詳しく{'\n'}探すこともできます
       </Text>
     </View>
   );
@@ -202,14 +222,14 @@ export const HomeScreen: React.FC = () => {
             contentContainerStyle={shrineTemples.length === 0 ? styles.emptyContainer : undefined}
           />
         ) : (
-          <OpenStreetMapView
+          <SimpleMapView
             shrineTemples={shrineTemples}
             onMarkerPress={handleMarkerPress}
             initialRegion={{
               latitude: currentLocation.latitude,
               longitude: currentLocation.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
+              latitudeDelta: 0.09, // 約5km圏内を表示 (1度≈111km なので 5km≈0.045度、余裕をもって0.09)
+              longitudeDelta: 0.09,
             }}
             isOffline={networkError}
           />

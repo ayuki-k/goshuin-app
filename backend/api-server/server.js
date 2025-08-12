@@ -206,7 +206,7 @@ app.get('/shrines-temples', async (req, res) => {
 // Search by location (nearby) - separate route to avoid conflict
 app.get('/search/nearby', async (req, res) => {
   try {
-    const { lat, lng, radius = 10 } = req.query;
+    const { lat, lng, radius = 5 } = req.query;
     
     if (!lat || !lng) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
@@ -215,6 +215,8 @@ app.get('/search/nearby', async (req, res) => {
     const centerLat = parseFloat(lat);
     const centerLng = parseFloat(lng);
     const radiusKm = parseFloat(radius);
+    
+    console.log(`Nearby search: Center(${centerLat}, ${centerLng}), Radius: ${radiusKm}km`);
 
     // Scan all items (in production, use geo indexing)
     const params = {
@@ -223,20 +225,48 @@ app.get('/search/nearby', async (req, res) => {
 
     const result = await dynamodb.scan(params).promise();
     let items = result.Items || [];
+    
+    console.log(`Total items in database: ${items.length}`);
 
-    // Filter by distance (simple approximation)
-    items = items.filter(item => {
-      if (!item.lat || !item.lng) return false;
+    // Filter by distance with detailed logging
+    const nearbyItems = [];
+    
+    items.forEach(item => {
+      if (!item.lat || !item.lng) {
+        console.log(`Skipping ${item.name}: Missing coordinates`);
+        return;
+      }
       
-      const distance = calculateDistance(
-        centerLat, centerLng,
-        parseFloat(item.lat), parseFloat(item.lng)
-      );
+      // Handle DynamoDB Decimal type conversion
+      const itemLat = typeof item.lat === 'object' ? parseFloat(item.lat.toString()) : parseFloat(item.lat);
+      const itemLng = typeof item.lng === 'object' ? parseFloat(item.lng.toString()) : parseFloat(item.lng);
       
-      return distance <= radiusKm;
+      if (isNaN(itemLat) || isNaN(itemLng)) {
+        console.log(`Skipping ${item.name}: Invalid coordinates (${item.lat}, ${item.lng})`);
+        return;
+      }
+      
+      const distance = calculateDistance(centerLat, centerLng, itemLat, itemLng);
+      
+      console.log(`${item.name}: (${itemLat}, ${itemLng}) - Distance: ${distance.toFixed(2)}km`);
+      
+      if (distance <= radiusKm) {
+        nearbyItems.push({
+          ...item,
+          distance: Math.round(distance * 100) / 100 // Round to 2 decimal places
+        });
+        console.log(`✓ ${item.name} is within ${radiusKm}km (${distance.toFixed(2)}km)`);
+      } else {
+        console.log(`✗ ${item.name} is outside ${radiusKm}km (${distance.toFixed(2)}km)`);
+      }
     });
+    
+    console.log(`Found ${nearbyItems.length} items within ${radiusKm}km`);
+    
+    // Sort by distance
+    nearbyItems.sort((a, b) => a.distance - b.distance);
 
-    res.json(items);
+    res.json(nearbyItems);
   } catch (error) {
     console.error('Nearby search error:', error);
     res.status(500).json({ error: 'Internal server error' });

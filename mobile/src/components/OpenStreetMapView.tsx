@@ -3,7 +3,7 @@ import {
   View,
   StyleSheet,
 } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, UrlTile } from 'react-native-maps';
 import { ShrineTemple } from '../types';
 
 interface OSMMapProps {
@@ -29,7 +29,9 @@ export const OpenStreetMapView: React.FC<OSMMapProps> = ({
   // initialRegionが変更されたら地図の表示領域も更新
   React.useEffect(() => {
     setRegion(initialRegion);
-  }, [initialRegion]);
+    console.log('OpenStreetMapView: Region updated:', initialRegion);
+    console.log('OpenStreetMapView: isOffline:', isOffline);
+  }, [initialRegion, isOffline]);
 
   const getMarkerColor = (shrineTemple: ShrineTemple): string => {
     return shrineTemple.type === 'shrine' ? '#FF6B6B' : '#4ECDC4';
@@ -43,20 +45,24 @@ export const OpenStreetMapView: React.FC<OSMMapProps> = ({
   return (
     <View style={styles.container}>
       <MapView
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         region={region}
         onRegionChangeComplete={setRegion}
         showsUserLocation={true}
         showsMyLocationButton={true}
         mapType={isOffline ? "standard" : "none"}
+        minZoomLevel={3}
+        maxZoomLevel={18}
       >
         {/* OpenStreetMap タイルレイヤー（オンライン時のみ） */}
         {!isOffline && (
           <UrlTile
             urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
+            maximumZ={18}
+            minimumZ={3}
             flipY={false}
+            shouldReplaceMapContent={true}
+            opacity={1.0}
           />
         )}
         

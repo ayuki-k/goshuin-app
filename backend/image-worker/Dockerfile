@@ -1,8 +1,5 @@
-FROM public.ecr.aws/lambda/python:3.11
-# Fonts for watermark text rendering (optional)
-RUN yum install -y fontconfig && yum clean all
-# Dependencies
+FROM python:3.11-slim
 RUN pip install pillow boto3
-# App code
-COPY handler.py ${LAMBDA_TASK_ROOT}
-CMD [ "handler.handler" ]
+WORKDIR /app
+COPY handler.py .
+CMD [ "python3", "handler.py", "local" ]

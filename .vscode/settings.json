@@ -1,0 +1,3 @@
+{
+    "aws.experimental.s3endpoint": "http://localhost:4566"
+}

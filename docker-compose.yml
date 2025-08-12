@@ -35,6 +35,8 @@ services:
       S3_BUCKET_ORIGINAL: goshuin-private-original
       S3_BUCKET_SHARED: goshuin-public-share
       LOCALSTACK_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     volumes:
       - ./backend/image-worker:/var/task
       - ./data:/workspace/data

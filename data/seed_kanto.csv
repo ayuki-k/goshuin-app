@@ -1,0 +1,6 @@
+id,prefecture,city,name,type,hasGoshuin,goshuinType,address,lat,lng,hours_notes,specialPeriod,officialUrl,photoUrl,source,updatedAt
+tokyo-meiji-jingu,Tokyo,Shibuya,Meiji Jingu,shrine,true,unknown,,,,,,,,seed,2025-08-12
+tokyo-senso-ji,Tokyo,Taito,Senso-ji,temple,true,unknown,,,,,,,,seed,2025-08-12
+kanagawa-tsurugaoka-hachimangu,Kanagawa,Kamakura,Tsurugaoka Hachimangu,shrine,true,unknown,,,,,,,,seed,2025-08-12
+chiba-naritasan-shinshoji,Chiba,Narita,Naritasan Shinshoji,temple,true,unknown,,,,,,,,seed,2025-08-12
+saitama-hikawa-jinja,Saitama,Saitama,Musashi Ichinomiya Hikawa Jinja,shrine,true,unknown,,,,,,,,seed,2025-08-12

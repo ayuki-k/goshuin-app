@@ -1,0 +1,13 @@
+{
+  "name": "goshuin-docker-local",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "image-worker",
+  "workspaceFolder": "/workspace",
+  "remoteEnv": {
+    "AWS_REGION": "ap-northeast-1",
+    "LOCALSTACK_URL": "http://localstack:4566"
+  },
+  "postCreateCommand": "pip install boto3 pillow"
+}

@@ -1,6 +1,6 @@
 id,prefecture,city,name,type,hasGoshuin,goshuinType,address,lat,lng,hours_notes,specialPeriod,officialUrl,photoUrl,source,updatedAt
-tokyo-meiji-jingu,Tokyo,Shibuya,Meiji Jingu,shrine,true,unknown,,,,,,,,seed,2025-08-12
-tokyo-senso-ji,Tokyo,Taito,Senso-ji,temple,true,unknown,,,,,,,,seed,2025-08-12
-kanagawa-tsurugaoka-hachimangu,Kanagawa,Kamakura,Tsurugaoka Hachimangu,shrine,true,unknown,,,,,,,,seed,2025-08-12
-chiba-naritasan-shinshoji,Chiba,Narita,Naritasan Shinshoji,temple,true,unknown,,,,,,,,seed,2025-08-12
-saitama-hikawa-jinja,Saitama,Saitama,Musashi Ichinomiya Hikawa Jinja,shrine,true,unknown,,,,,,,,seed,2025-08-12
+tokyo-meiji-jingu,Tokyo,Shibuya,Meiji Jingu,shrine,true,standard,東京都渋谷区代々木神園町1-1,35.6762,139.6993,6:00-18:00,,https://www.meijijingu.or.jp/,,seed,2025-08-12
+tokyo-senso-ji,Tokyo,Taito,Senso-ji,temple,true,standard,東京都台東区浅草2-3-1,35.7148,139.7967,6:00-17:00,,https://www.senso-ji.jp/,,seed,2025-08-12
+kanagawa-tsurugaoka-hachimangu,Kanagawa,Kamakura,Tsurugaoka Hachimangu,shrine,true,standard,神奈川県鎌倉市雪ノ下2-1-31,35.3258,139.5551,6:00-20:30,,https://www.hachimangu.or.jp/,,seed,2025-08-12
+chiba-naritasan-shinshoji,Chiba,Narita,Naritasan Shinshoji,temple,true,standard,千葉県成田市成田1,35.7854,140.3128,8:00-16:00,,https://www.naritasan.or.jp/,,seed,2025-08-12
+saitama-hikawa-jinja,Saitama,Saitama,Musashi Ichinomiya Hikawa Jinja,shrine,true,standard,埼玉県さいたま市大宮区高鼻町1-407,35.9064,139.6272,6:00-17:00,,http://musashiichinomiya-hikawa.or.jp/,,seed,2025-08-12

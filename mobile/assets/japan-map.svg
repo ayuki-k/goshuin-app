@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- 日本地図の簡略化されたSVG -->
+  <defs>
+    <style>
+      .prefecture { fill: #e8f4f8; stroke: #4a90a4; stroke-width: 1.5; }
+      .prefecture:hover { fill: #b8d4e3; }
+      .sea { fill: #c6e2f0; }
+    </style>
+  </defs>
+  
+  <!-- 海域背景 -->
+  <rect width="800" height="600" class="sea"/>
+  
+  <!-- 本州（簡略版） -->
+  <path class="prefecture" d="M150,250 Q200,200 300,220 Q400,240 500,250 Q600,260 650,300 Q680,350 650,400 Q600,450 500,430 Q400,420 300,400 Q200,380 150,350 Q120,300 150,250 Z"/>
+  
+  <!-- 北海道 -->
+  <ellipse class="prefecture" cx="400" cy="120" rx="80" ry="50"/>
+  
+  <!-- 九州 -->
+  <ellipse class="prefecture" cx="200" cy="480" rx="60" ry="80"/>
+  
+  <!-- 四国 -->
+  <ellipse class="prefecture" cx="350" cy="420" rx="50" ry="30"/>
+  
+  <!-- 主要都市マーカー -->
+  <g id="cities">
+    <!-- 東京 -->
+    <circle cx="480" cy="300" r="3" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+    <text x="485" y="295" font-family="Arial, sans-serif" font-size="12" fill="#333">東京</text>
+    
+    <!-- 大阪 -->
+    <circle cx="420" cy="340" r="2" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+    <text x="425" y="335" font-family="Arial, sans-serif" font-size="10" fill="#333">大阪</text>
+    
+    <!-- 名古屋 -->
+    <circle cx="450" cy="320" r="2" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+    <text x="455" y="315" font-family="Arial, sans-serif" font-size="10" fill="#333">名古屋</text>
+    
+    <!-- 福岡 -->
+    <circle cx="220" cy="460" r="2" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+    <text x="225" y="455" font-family="Arial, sans-serif" font-size="10" fill="#333">福岡</text>
+    
+    <!-- 札幌 -->
+    <circle cx="400" cy="120" r="2" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+    <text x="405" y="115" font-family="Arial, sans-serif" font-size="10" fill="#333">札幌</text>
+  </g>
+  
+  <!-- 地域ラベル -->
+  <g id="region-labels">
+    <text x="400" y="130" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">北海道</text>
+    <text x="450" y="280" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">本州</text>
+    <text x="350" y="440" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#666">四国</text>
+    <text x="200" y="500" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#666">九州</text>
+  </g>
+</svg>

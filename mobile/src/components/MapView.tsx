@@ -30,13 +30,16 @@ export const GoshuinMapView: React.FC<MapProps> = ({
     latitude: number;
     longitude: number;
   } | null>(null);
+  // 東京駅の座標をデフォルトに設定
+  const TOKYO_STATION = {
+    latitude: 35.6812, // 東京駅の正確な座標
+    longitude: 139.7671,
+    latitudeDelta: 0.5, // 関東地方全体が見える範囲
+    longitudeDelta: 0.5,
+  };
+
   const [region, setRegion] = useState(
-    initialRegion || {
-      latitude: 35.6762,
-      longitude: 139.6503,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
-    }
+    initialRegion || TOKYO_STATION
   );
 
   const requestLocationPermission = async () => {
@@ -63,7 +66,11 @@ export const GoshuinMapView: React.FC<MapProps> = ({
 
   const getCurrentLocation = async () => {
     const hasPermission = await requestLocationPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      // 権限がない場合は東京駅を中心に設定
+      setRegion(TOKYO_STATION);
+      return;
+    }
 
     Geolocation.getCurrentPosition(
       (position) => {
@@ -77,15 +84,34 @@ export const GoshuinMapView: React.FC<MapProps> = ({
         });
       },
       (error) => {
+
         console.error('Location error:', error);
-        Alert.alert('エラー', '現在地を取得できませんでした');
+        // 現在地取得に失敗した場合は東京駅を中心に設定
+        setRegion(TOKYO_STATION);
+        Alert.alert(
+          '位置情報',
+          '現在地を取得できませんでした。東京駅を中心に表示します。',
+          [{ text: 'OK' }]
+        );
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 10000, // タイムアウトを10秒に短縮
+        maximumAge: 10000 
+      }
     );
   };
 
   useEffect(() => {
-    getCurrentLocation();
+    // 初期化時にまず東京駅を設定し、その後現在地取得を試行
+    setRegion(TOKYO_STATION);
+    
+    // 少し遅延させて現在地取得を開始
+    const timer = setTimeout(() => {
+      getCurrentLocation();
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const getMarkerColor = (shrineTemple: ShrineTemple): string => {
@@ -108,11 +134,18 @@ export const GoshuinMapView: React.FC<MapProps> = ({
         showsMyLocationButton={true}
         mapType="standard"
       >
-        {currentLocation && (
+        {currentLocation ? (
           <Marker
             coordinate={currentLocation}
             title="現在地"
             pinColor="blue"
+          />
+        ) : (
+          <Marker
+            coordinate={TOKYO_STATION}
+            title="東京駅"
+            description="位置情報が取得できないため、東京駅を表示中"
+            pinColor="orange"
           />
         )}
         

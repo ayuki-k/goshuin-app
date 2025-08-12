@@ -43,3 +43,16 @@ services:
     command: [ "python3", "handler.py", "local" ]
     depends_on:
       - localstack
+
+  api-server:
+    build:
+      context: ./backend/api-server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      LOCALSTACK_URL: http://localstack:4566
+      AWS_REGION: ${AWS_REGION:-ap-northeast-1}
+    depends_on:
+      - localstack

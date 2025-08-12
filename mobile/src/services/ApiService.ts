@@ -1,6 +1,6 @@
 import { ShrineTemple, SearchFilters } from '../types';
 
-const API_BASE_URL = 'http://localhost:4566'; // LocalStack endpoint
+const API_BASE_URL = 'http://localhost:3001'; // API Server endpoint
 
 class ApiService {
   private async makeRequest<T>(
@@ -49,7 +49,7 @@ class ApiService {
       radius: radius.toString(),
     });
 
-    return this.makeRequest<ShrineTemple[]>(`/shrines-temples/nearby?${queryParams.toString()}`);
+    return this.makeRequest<ShrineTemple[]>(`/search/nearby?${queryParams.toString()}`);
   }
 }
 

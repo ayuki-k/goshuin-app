@@ -33,6 +33,49 @@ export const HomeScreen: React.FC = () => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(TOKYO_STATION);
   const [networkError, setNetworkError] = useState(false);
+  const [mapRegion, setMapRegion] = useState({
+    latitude: TOKYO_STATION.latitude,
+    longitude: TOKYO_STATION.longitude,
+    latitudeDelta: 0.09,
+    longitudeDelta: 0.09,
+  });
+
+  // 検索結果の中心座標を計算
+  const calculateSearchResultsCenter = (temples: ShrineTemple[]) => {
+    if (temples.length === 0) return null;
+
+    // 有効な座標を持つ寺院・神社のみフィルター
+    const validTemples = temples.filter(temple => temple.lat && temple.lng);
+    if (validTemples.length === 0) return null;
+
+    // 中心座標を計算（単純平均）
+    const totalLat = validTemples.reduce((sum, temple) => sum + Number(temple.lat), 0);
+    const totalLng = validTemples.reduce((sum, temple) => sum + Number(temple.lng), 0);
+    
+    const centerLat = totalLat / validTemples.length;
+    const centerLng = totalLng / validTemples.length;
+
+    // 適切なズームレベルを計算（範囲に基づく）
+    const latitudes = validTemples.map(t => Number(t.lat));
+    const longitudes = validTemples.map(t => Number(t.lng));
+    
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+    
+    const latDelta = Math.max((maxLat - minLat) * 1.5, 0.01); // 最小ズーム制限
+    const lngDelta = Math.max((maxLng - minLng) * 1.5, 0.01);
+
+    console.log(`Search results center: (${centerLat}, ${centerLng}), Delta: (${latDelta}, ${lngDelta})`);
+
+    return {
+      latitude: centerLat,
+      longitude: centerLng,
+      latitudeDelta: Math.min(latDelta, 1.0), // 最大ズーム制限
+      longitudeDelta: Math.min(lngDelta, 1.0),
+    };
+  };
 
   // 5km圏内の寺院・神社を自動取得
   const loadNearbyTemples = async (latitude: number, longitude: number) => {
@@ -66,6 +109,14 @@ export const HomeScreen: React.FC = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentLocation({ latitude, longitude });
+        
+        // 地図の中心を現在地に設定（5km圏内表示）
+        setMapRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.09,
+          longitudeDelta: 0.09,
+        });
         
         // 位置情報取得成功時に5km圏内の寺院・神社を自動取得
         await loadNearbyTemples(latitude, longitude);
@@ -119,6 +170,15 @@ export const HomeScreen: React.FC = () => {
       const results = await apiService.searchShrineTemples(filters);
       setShrineTemples(results);
       setNetworkError(false);
+      
+      // 検索結果がある場合、地図の中心を検索結果の場所に移動
+      if (results.length > 0) {
+        const searchCenter = calculateSearchResultsCenter(results);
+        if (searchCenter) {
+          setMapRegion(searchCenter);
+          console.log(`Map moved to search results: ${JSON.stringify(searchCenter)}`);
+        }
+      }
     } catch (error) {
       console.error('Search error:', error);
       setNetworkError(true);
@@ -232,6 +292,7 @@ export const HomeScreen: React.FC = () => {
               longitudeDelta: 0.09,
             }}
             isOffline={networkError}
+            mapRegion={mapRegion}
           />
         )}
       </View>

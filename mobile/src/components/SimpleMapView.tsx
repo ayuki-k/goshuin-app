@@ -17,6 +17,12 @@ interface SimpleMapProps {
     longitudeDelta: number;
   };
   isOffline?: boolean;
+  mapRegion?: {
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  };
 }
 
 export const SimpleMapView: React.FC<SimpleMapProps> = ({
@@ -24,6 +30,7 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
   onMarkerPress,
   initialRegion,
   isOffline = false,
+  mapRegion,
 }) => {
   const getMarkerColor = (shrineTemple: ShrineTemple): string => {
     return shrineTemple.type === 'shrine' ? '#FF6B6B' : '#4ECDC4';
@@ -46,13 +53,25 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
     );
   }
 
-  console.log('SimpleMapView render: isOffline=', isOffline, 'region=', initialRegion);
+  // 現在の地図領域を管理
+  const [currentRegion, setCurrentRegion] = React.useState(initialRegion);
+  
+  // mapRegionが更新された時に地図を移動
+  React.useEffect(() => {
+    if (mapRegion) {
+      setCurrentRegion(mapRegion);
+      console.log('SimpleMapView: Map region updated to:', mapRegion);
+    }
+  }, [mapRegion]);
+
+  console.log('SimpleMapView render: isOffline=', isOffline, 'region=', currentRegion);
 
   return (
     <View style={styles.container}>
       <MapView
         style={styles.map}
-        initialRegion={initialRegion}
+        region={currentRegion}
+        onRegionChangeComplete={setCurrentRegion}
         showsUserLocation={true}
         showsMyLocationButton={true}
         mapType="standard"
@@ -72,28 +91,32 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
           />
         )}
         
-        {/* 5km圏内を示すサークル */}
-        <Circle
-          center={{
-            latitude: initialRegion.latitude,
-            longitude: initialRegion.longitude,
-          }}
-          radius={5000} // 5km = 5000m
-          strokeColor="rgba(0, 122, 255, 0.5)"
-          fillColor="rgba(0, 122, 255, 0.1)"
-          strokeWidth={2}
-        />
+        {/* 現在地が表示される場合のみ5km圏内サークルを表示 */}
+        {!mapRegion && (
+          <Circle
+            center={{
+              latitude: initialRegion.latitude,
+              longitude: initialRegion.longitude,
+            }}
+            radius={5000} // 5km = 5000m
+            strokeColor="rgba(0, 122, 255, 0.5)"
+            fillColor="rgba(0, 122, 255, 0.1)"
+            strokeWidth={2}
+          />
+        )}
         
-        {/* 現在地マーカー */}
-        <Marker
-          coordinate={{
-            latitude: initialRegion.latitude,
-            longitude: initialRegion.longitude,
-          }}
-          title="📍 現在地"
-          description="5km圏内の神社・寺院を表示"
-          pinColor="blue"
-        />
+        {/* 現在地マーカー（検索時は非表示） */}
+        {!mapRegion && (
+          <Marker
+            coordinate={{
+              latitude: initialRegion.latitude,
+              longitude: initialRegion.longitude,
+            }}
+            title="📍 現在地"
+            description="5km圏内の神社・寺院を表示"
+            pinColor="blue"
+          />
+        )}
         
         {/* 神社・寺院マーカー */}
         {Array.isArray(shrineTemples) && shrineTemples

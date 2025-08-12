@@ -6,18 +6,18 @@ import {
   Alert,
   FlatList,
   Text,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 import { SearchBar } from '../components/SearchBar';
-import { GoshuinMapView } from '../components/MapView';
-import { OfflineMapView } from '../components/OfflineMapView';
-import { OfflineTileMapView } from '../components/OfflineTileMapView';
+import { OpenStreetMapView } from '../components/OpenStreetMapView';
 import { ShrineTempleCard } from '../components/ShrineTempleCard';
 import { GoshuinImageModal } from '../components/GoshuinImageModal';
 import { ShrineTemple, SearchFilters } from '../types';
 import { apiService } from '../services/ApiService';
 
-type ViewMode = 'list' | 'map' | 'offline';
+type ViewMode = 'list' | 'map';
 
 // 東京駅の座標（フォールバック位置）
 const TOKYO_STATION = {
@@ -33,13 +33,19 @@ export const HomeScreen: React.FC = () => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(TOKYO_STATION);
   const [networkError, setNetworkError] = useState(false);
-  // オフライン地図方式の切り替え（true: タイル, false: イラスト）
-  const [useTileOfflineMap, setUseTileOfflineMap] = useState(false);
-  // オフラインタイルサーバーのURL（例: ローカルサーバーや端末内）
-  const offlineTileUrl = 'http://localhost:8080/tiles/{z}/{x}/{y}.png';
 
-  // 現在地取得（フォールバック付き）
-  const getCurrentLocation = () => {
+  // 起動時の位置情報取得
+  const requestLocationAtStartup = async () => {
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      Alert.alert(
+        '位置情報の許可が必要です',
+        '現在地周辺の神社・寺院を表示するには位置情報の許可が必要です。設定から許可してください。',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -47,20 +53,45 @@ export const HomeScreen: React.FC = () => {
       },
       (error) => {
         console.log('Location error:', error);
-        // エラー時は東京駅のままにする（既にデフォルト値）
-        setCurrentLocation(TOKYO_STATION);
+        Alert.alert(
+          '位置情報取得エラー',
+          '現在地を取得できませんでした。東京駅を中心に表示します。\n\n設定 > プライバシーとセキュリティ > 位置情報サービス から許可を確認してください。',
+          [{ text: 'OK' }]
+        );
       },
       { 
-        enableHighAccuracy: false, // バッテリー節約
-        timeout: 10000,
-        maximumAge: 300000 // 5分間キャッシュ
+        enableHighAccuracy: true,
+        timeout: 15000, // 15秒でタイムアウト
+        maximumAge: 60000 // 1分間キャッシュ
       }
     );
   };
 
-  // 初期化時に現在地取得を試行
+  const requestLocationPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: '位置情報の許可',
+            message: '御朱印アプリが現在地を表示するために位置情報が必要です',
+            buttonNeutral: '後で確認',
+            buttonNegative: 'キャンセル',
+            buttonPositive: '許可',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // 起動時に一度だけ位置情報取得を試行
   useEffect(() => {
-    getCurrentLocation();
+    requestLocationAtStartup();
   }, []);
 
   const handleSearch = async (filters: SearchFilters) => {
@@ -72,17 +103,7 @@ export const HomeScreen: React.FC = () => {
     } catch (error) {
       console.error('Search error:', error);
       setNetworkError(true);
-      
-      // ネットワークエラー時は自動的にオフライン地図に切り替え
-      if (viewMode === 'map') {
-        setViewMode('offline');
-        Alert.alert(
-          'ネットワークエラー', 
-          'ネットワーク接続がありません。オフライン地図に切り替えました。'
-        );
-      } else {
-        Alert.alert('エラー', '検索に失敗しました。ネットワーク接続を確認してください。');
-      }
+      Alert.alert('エラー', '検索に失敗しました。ネットワーク接続を確認してください。');
     } finally {
       setLoading(false);
     }
@@ -150,7 +171,7 @@ export const HomeScreen: React.FC = () => {
         {networkError && (
           <View style={styles.networkStatus}>
             <Text style={styles.networkStatusText}>
-              ⚠️ ネットワーク接続なし - オフラインモードを推奨
+              ⚠️ ネットワーク接続なし - オフラインモード
             </Text>
           </View>
         )}
@@ -162,35 +183,10 @@ export const HomeScreen: React.FC = () => {
             📝 リスト
           </Text>
           <Text
-            style={[
-              styles.toggleButton, 
-              viewMode === 'map' && styles.activeToggle,
-              networkError && styles.disabledToggle
-            ]}
-            onPress={() => {
-              if (networkError) {
-                Alert.alert(
-                  'ネットワークエラー',
-                  'オンライン地図はネットワーク接続が必要です。オフライン地図をお使いください。'
-                );
-              } else {
-                setViewMode('map');
-              }
-            }}
+            style={[styles.toggleButton, viewMode === 'map' && styles.activeToggle]}
+            onPress={() => setViewMode('map')}
           >
-            🗺️ 地図 {networkError && '(無効)'}
-          </Text>
-          <Text
-            style={[styles.toggleButton, viewMode === 'offline' && styles.activeToggle]}
-            onPress={() => setViewMode('offline')}
-          >
-            🗾 オフライン
-          </Text>
-          <Text
-            style={[styles.toggleButton, useTileOfflineMap && styles.activeToggle]}
-            onPress={() => setUseTileOfflineMap(!useTileOfflineMap)}
-          >
-            🗾 タイル地図
+            🗺️ 地図
           </Text>
         </View>
       </View>
@@ -205,34 +201,17 @@ export const HomeScreen: React.FC = () => {
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={shrineTemples.length === 0 ? styles.emptyContainer : undefined}
           />
-        ) : viewMode === 'map' ? (
-          <GoshuinMapView
-            shrineTemples={shrineTemples}
-            onMarkerPress={handleMarkerPress}
-            initialRegion={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
-            }}
-          />
-        ) : useTileOfflineMap ? (
-          <OfflineTileMapView
-            shrineTemples={shrineTemples}
-            onMarkerPress={handleMarkerPress}
-            initialRegion={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
-            }}
-            tileUrl={offlineTileUrl}
-          />
         ) : (
-          <OfflineMapView
+          <OpenStreetMapView
             shrineTemples={shrineTemples}
             onMarkerPress={handleMarkerPress}
-            currentLocation={currentLocation}
+            initialRegion={{
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+              latitudeDelta: 0.5,
+              longitudeDelta: 0.5,
+            }}
+            isOffline={networkError}
           />
         )}
       </View>
@@ -280,10 +259,6 @@ const styles = StyleSheet.create({
   activeToggle: {
     backgroundColor: '#007AFF',
     color: '#fff',
-  },
-  disabledToggle: {
-    opacity: 0.5,
-    color: '#999',
   },
   networkStatus: {
     backgroundColor: '#fff3cd',

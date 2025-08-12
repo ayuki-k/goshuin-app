@@ -30,6 +30,7 @@ class ApiService {
   async searchShrineTemples(filters: SearchFilters): Promise<ShrineTemple[]> {
     const queryParams = new URLSearchParams();
     
+    // URLSearchParams automatically handles UTF-8 encoding
     if (filters.prefecture) queryParams.append('prefecture', filters.prefecture);
     if (filters.city) queryParams.append('city', filters.city);
     if (filters.type && filters.type !== 'all') queryParams.append('type', filters.type);

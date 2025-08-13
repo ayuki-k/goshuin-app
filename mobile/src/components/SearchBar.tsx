@@ -24,6 +24,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, loading = false 
     };
 
     if (searchText.trim()) {
+      // 地名が入力されている場合は通常の検索
       const searchTerms = searchText.trim().split(/[\s　]+/);
       if (searchTerms.length > 0) {
         filters.prefecture = searchTerms[0];
@@ -31,10 +32,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, loading = false 
       if (searchTerms.length > 1) {
         filters.city = searchTerms[1];
       }
+    } else {
+      // 地名が入力されていない場合は5km圏内検索
+      filters.isNearbySearch = true;
     }
 
     onSearch(filters);
   };
+
 
   return (
     <View style={styles.container}>
@@ -83,7 +88,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, loading = false 
         disabled={loading}
       >
         <Text style={styles.searchButtonText}>
-          {loading ? '検索中...' : '検索'}
+          {loading ? '検索中...' : searchText.trim() ? '🔍 検索' : '📍 5km圏内を表示'}
         </Text>
       </TouchableOpacity>
     </View>

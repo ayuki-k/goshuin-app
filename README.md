@@ -21,7 +21,7 @@ docker compose up -d
 LOCALSTACK_URL=http://localhost:4566 AWS_REGION=ap-northeast-1 \
 python3 ./scripts/import_seed.py
 ```
-> 以前あなたが作った `goshuin_seed_kanto_v0_1.csv` を `data/seed_kanto.csv` にリネームして置けばOK。
+> 詳細な手順とCSVファイル形式については [データ流し込みガイド](./docs/data-import.md) を参照してください。
 
 ### 画像ワーカーをローカル実行（お試し）
 `data/sample.jpg` を置いて以下を実行：

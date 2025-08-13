@@ -42,11 +42,17 @@ export const HomeScreen: React.FC = () => {
 
   // 検索結果の中心座標を計算
   const calculateSearchResultsCenter = (temples: ShrineTemple[]) => {
+    console.log(`calculateSearchResultsCenter: Processing ${temples.length} temples`);
     if (temples.length === 0) return null;
 
     // 有効な座標を持つ寺院・神社のみフィルター
     const validTemples = temples.filter(temple => temple.lat && temple.lng);
-    if (validTemples.length === 0) return null;
+    console.log(`calculateSearchResultsCenter: ${validTemples.length} temples have valid coordinates`);
+    
+    if (validTemples.length === 0) {
+      console.log('calculateSearchResultsCenter: No valid coordinates found');
+      return null;
+    }
 
     // 中心座標を計算（単純平均）
     const totalLat = validTemples.reduce((sum, temple) => sum + Number(temple.lat), 0);
@@ -68,6 +74,7 @@ export const HomeScreen: React.FC = () => {
     const lngDelta = Math.max((maxLng - minLng) * 1.5, 0.01);
 
     console.log(`Search results center: (${centerLat}, ${centerLng}), Delta: (${latDelta}, ${lngDelta})`);
+    console.log(`Coordinate range: Lat(${minLat} - ${maxLat}), Lng(${minLng} - ${maxLng})`);
 
     return {
       latitude: centerLat,
@@ -167,17 +174,53 @@ export const HomeScreen: React.FC = () => {
   const handleSearch = async (filters: SearchFilters) => {
     setLoading(true);
     try {
+      // 現在地付近検索の場合（テキスト入力なし）
+      if (filters.isNearbySearch) {
+        console.log('Nearby search: showing temples within 5km of current location');
+        
+        // 現在地付近5kmの寺院・神社を取得
+        await loadNearbyTemples(currentLocation.latitude, currentLocation.longitude);
+        
+        // 地図を現在地に戻す
+        setMapRegion({
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          latitudeDelta: 0.09,
+          longitudeDelta: 0.09,
+        });
+        
+        setNetworkError(false);
+        console.log('Showing nearby temples within 5km of current location');
+        return;
+      }
+
+      // 地名が指定されている場合は検索を実行（5km制限なし）
+      console.log('Location search: searching by prefecture/city with filters:', filters);
       const results = await apiService.searchShrineTemples(filters);
       setShrineTemples(results);
       setNetworkError(false);
       
+      console.log(`Search completed: Found ${results.length} results`);
+      
       // 検索結果がある場合、地図の中心を検索結果の場所に移動
       if (results.length > 0) {
+        console.log('Sample search result:', results[0]);
         const searchCenter = calculateSearchResultsCenter(results);
         if (searchCenter) {
           setMapRegion(searchCenter);
           console.log(`Map moved to search results: ${JSON.stringify(searchCenter)}`);
+        } else {
+          console.log('calculateSearchResultsCenter returned null');
         }
+      } else {
+        console.log('No search results found, returning to current location');
+        // 検索結果がない場合は現在地に戻す
+        setMapRegion({
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          latitudeDelta: 0.09,
+          longitudeDelta: 0.09,
+        });
       }
     } catch (error) {
       console.error('Search error:', error);

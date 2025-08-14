@@ -9,11 +9,14 @@ import {
   Pressable,
   Dimensions,
 } from 'react-native';
-import { ShrineTemple } from '../types';
+import { ShrineTemple, VisitRecord, VisitStatus } from '../types';
+import { VisitStatusUtils } from '../utils/VisitStatusUtils';
 
 interface ShrineTempleCardProps {
   shrineTemple: ShrineTemple;
   onPress?: () => void;
+  visitRecords?: VisitRecord[];
+  onAddVisit?: (shrine: ShrineTemple) => void;
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -21,9 +24,14 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
   shrineTemple,
   onPress,
+  visitRecords = [],
+  onAddVisit,
 }) => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageError, setImageError] = useState(false);
+  
+  // 参拝ステータスを取得
+  const visitStatus: VisitStatus = VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords);
   const getTypeIcon = (type: string) => {
     return type === 'shrine' ? '⛩️' : '🏯';
   };
@@ -65,16 +73,28 @@ export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
       <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Text style={styles.icon}>{getTypeIcon(shrineTemple.type)}</Text>
+          <Text style={styles.icon}>{VisitStatusUtils.getMarkerIcon(shrineTemple, visitStatus)}</Text>
           <View style={styles.nameContainer}>
             <Text style={styles.name}>{shrineTemple.name}</Text>
             <Text style={styles.type}>{getTypeText(shrineTemple.type)}</Text>
+            {visitStatus.isVisited && (
+              <Text style={styles.visitStatus}>
+                {visitStatus.hasGoshuin ? '🏅 御朱印取得済み' : '✅ 参拝済み'}
+                {visitStatus.isFavorite && ' ❤️'}
+                {visitStatus.visitCount > 1 && ` (${visitStatus.visitCount}回)`}
+              </Text>
+            )}
           </View>
         </View>
         
-        {shrineTemple.hasGoshuin && (
-          <View style={styles.goshuinBadge}>
-            <Text style={styles.goshuinText}>御朱印</Text>
+        {(shrineTemple.hasGoshuin || visitStatus.hasGoshuin) && (
+          <View style={[
+            styles.goshuinBadge,
+            visitStatus.hasGoshuin && styles.goshuinBadgeObtained
+          ]}>
+            <Text style={styles.goshuinText}>
+              {visitStatus.hasGoshuin ? '御朱印済' : '御朱印'}
+            </Text>
           </View>
         )}
       </View>
@@ -103,12 +123,27 @@ export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
       )}
 
       <View style={styles.footer}>
-        <Text style={styles.goshuinStatus}>
-          {getGoshuinStatus(shrineTemple.hasGoshuin, shrineTemple.goshuinType)}
-        </Text>
+        <View style={styles.footerLeft}>
+          <Text style={styles.goshuinStatus}>
+            {getGoshuinStatus(shrineTemple.hasGoshuin, shrineTemple.goshuinType)}
+          </Text>
+          {shrineTemple.officialUrl && (
+            <Text style={styles.websiteIndicator}>🔗 公式サイトあり</Text>
+          )}
+        </View>
         
-        {shrineTemple.officialUrl && (
-          <Text style={styles.websiteIndicator}>🔗 公式サイトあり</Text>
+        {onAddVisit && (
+          <TouchableOpacity
+            style={styles.addVisitButton}
+            onPress={(e) => {
+              e.stopPropagation(); // カード全体のonPressを止める
+              onAddVisit(shrineTemple);
+            }}
+          >
+            <Text style={styles.addVisitButtonText}>
+              {visitStatus.isVisited ? '+記録' : '参拝記録'}
+            </Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -212,11 +247,20 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  visitStatus: {
+    fontSize: 11,
+    color: '#007AFF',
+    marginTop: 2,
+    fontWeight: '500',
+  },
   goshuinBadge: {
     backgroundColor: '#FF6B6B',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+  },
+  goshuinBadgeObtained: {
+    backgroundColor: '#FFD700',
   },
   goshuinText: {
     color: '#fff',
@@ -259,6 +303,21 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
+  },
+  footerLeft: {
+    flex: 1,
+  },
+  addVisitButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  addVisitButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   goshuinStatus: {
     fontSize: 12,

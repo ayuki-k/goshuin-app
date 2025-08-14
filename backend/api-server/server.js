@@ -309,6 +309,166 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Visit Records endpoints
+
+// Get all visit records (for a user - simplified for demo)
+app.get('/visit-records', async (req, res) => {
+  try {
+    const params = {
+      TableName: 'VisitRecord'
+    };
+
+    const result = await dynamodb.scan(params).promise();
+    let items = result.Items || [];
+
+    // Sort by visit date (newest first)
+    items.sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate));
+
+    res.json(items);
+  } catch (error) {
+    console.error('Get visit records error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create new visit record
+app.post('/visit-records', async (req, res) => {
+  try {
+    const {
+      shrineTempleId,
+      shrineTempleName,
+      visitDate,
+      notes,
+      hasGoshuin,
+      rating
+    } = req.body;
+
+    if (!shrineTempleId || !shrineTempleName || !visitDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const visitRecord = {
+      id: `visit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: 'demo-user', // Simplified for demo
+      shrineTempleId,
+      shrineTempleName,
+      visitDate,
+      notes: notes || '',
+      hasGoshuin: hasGoshuin || false,
+      rating: rating || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const params = {
+      TableName: 'VisitRecord',
+      Item: visitRecord
+    };
+
+    await dynamodb.put(params).promise();
+    res.status(201).json(visitRecord);
+  } catch (error) {
+    console.error('Create visit record error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get visit record by ID
+app.get('/visit-records/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const params = {
+      TableName: 'VisitRecord',
+      Key: { id }
+    };
+
+    const result = await dynamodb.get(params).promise();
+    
+    if (!result.Item) {
+      return res.status(404).json({ error: 'Visit record not found' });
+    }
+
+    res.json(result.Item);
+  } catch (error) {
+    console.error('Get visit record by ID error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update visit record
+app.put('/visit-records/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      shrineTempleName,
+      visitDate,
+      notes,
+      hasGoshuin,
+      rating
+    } = req.body;
+
+    const updateExpression = [];
+    const expressionAttributeValues = {};
+
+    if (shrineTempleName !== undefined) {
+      updateExpression.push('shrineTempleName = :shrineTempleName');
+      expressionAttributeValues[':shrineTempleName'] = shrineTempleName;
+    }
+    if (visitDate !== undefined) {
+      updateExpression.push('visitDate = :visitDate');
+      expressionAttributeValues[':visitDate'] = visitDate;
+    }
+    if (notes !== undefined) {
+      updateExpression.push('notes = :notes');
+      expressionAttributeValues[':notes'] = notes;
+    }
+    if (hasGoshuin !== undefined) {
+      updateExpression.push('hasGoshuin = :hasGoshuin');
+      expressionAttributeValues[':hasGoshuin'] = hasGoshuin;
+    }
+    if (rating !== undefined) {
+      updateExpression.push('rating = :rating');
+      expressionAttributeValues[':rating'] = rating;
+    }
+
+    updateExpression.push('updatedAt = :updatedAt');
+    expressionAttributeValues[':updatedAt'] = new Date().toISOString();
+
+    const params = {
+      TableName: 'VisitRecord',
+      Key: { id },
+      UpdateExpression: `SET ${updateExpression.join(', ')}`,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW'
+    };
+
+    const result = await dynamodb.update(params).promise();
+    res.json(result.Attributes);
+  } catch (error) {
+    console.error('Update visit record error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete visit record
+app.delete('/visit-records/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const params = {
+      TableName: 'VisitRecord',
+      Key: { id }
+    };
+
+    await dynamodb.delete(params).promise();
+    res.status(204).send();
+  } catch (error) {
+    console.error('Delete visit record error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Goshuin API Server running on port ${PORT}`);
   console.log(`📍 LocalStack endpoint: ${process.env.LOCALSTACK_URL || 'http://localhost:4566'}`);

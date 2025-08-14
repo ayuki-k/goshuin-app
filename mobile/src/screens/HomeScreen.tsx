@@ -6,36 +6,49 @@ import {
   Alert,
   FlatList,
   Text,
-  Platform,
-  PermissionsAndroid,
 } from 'react-native';
-import Geolocation from 'react-native-geolocation-service';
 import { SearchBar } from '../components/SearchBar';
 import { SimpleMapView } from '../components/SimpleMapView';
 import { ShrineTempleCard } from '../components/ShrineTempleCard';
 import { GoshuinImageModal } from '../components/GoshuinImageModal';
-import { ShrineTemple, SearchFilters } from '../types';
+import { AddVisitFromShrineModal } from '../components/AddVisitFromShrineModal';
+import { ShrineTemple, SearchFilters, VisitRecord } from '../types';
 import { apiService } from '../services/ApiService';
+import LocalStorageService from '../services/LocalStorageService';
+import { VisitStatusUtils } from '../utils/VisitStatusUtils';
 
 type ViewMode = 'list' | 'map';
 
-// 東京駅の座標（フォールバック位置）
-const TOKYO_STATION = {
-  latitude: 35.6812,
-  longitude: 139.7671,
-};
+interface LocationState {
+  latitude: number;
+  longitude: number;
+  isLocationPermissionGranted: boolean;
+  locationError?: string;
+}
 
-export const HomeScreen: React.FC = () => {
+interface HomeScreenProps {
+  currentLocation: LocationState;
+  isLocationInitialized: boolean;
+}
+
+export const HomeScreen: React.FC<HomeScreenProps> = ({
+  currentLocation,
+  isLocationInitialized,
+}) => {
   const [shrineTemples, setShrineTemples] = useState<ShrineTemple[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedShrine, setSelectedShrine] = useState<ShrineTemple | null>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState(TOKYO_STATION);
   const [networkError, setNetworkError] = useState(false);
+  const [visitRecords, setVisitRecords] = useState<VisitRecord[]>([]);
+  const [showVisitPaths, setShowVisitPaths] = useState(false);
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [showAddVisitModal, setShowAddVisitModal] = useState(false);
+  const [selectedShrineForVisit, setSelectedShrineForVisit] = useState<ShrineTemple | null>(null);
   const [mapRegion, setMapRegion] = useState({
-    latitude: TOKYO_STATION.latitude,
-    longitude: TOKYO_STATION.longitude,
+    latitude: currentLocation.latitude,
+    longitude: currentLocation.longitude,
     latitudeDelta: 0.09,
     longitudeDelta: 0.09,
   });
@@ -100,75 +113,48 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // 起動時の位置情報取得
-  const requestLocationAtStartup = async () => {
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission) {
-      Alert.alert(
-        '位置情報の許可が必要です',
-        '現在地周辺の神社・寺院を表示するには位置情報の許可が必要です。設定から許可してください。',
-        [{ text: 'OK' }]
-      );
-      return;
+  // 参拝記録の取得
+  const loadVisitRecords = async () => {
+    try {
+      const records = await LocalStorageService.getVisitRecords();
+      setVisitRecords(records);
+      console.log(`HomeScreen: Loaded ${records.length} visit records`);
+    } catch (error) {
+      console.error('HomeScreen: Error loading visit records:', error);
     }
-
-    Geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setCurrentLocation({ latitude, longitude });
-        
-        // 地図の中心を現在地に設定（5km圏内表示）
-        setMapRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.09,
-          longitudeDelta: 0.09,
-        });
-        
-        // 位置情報取得成功時に5km圏内の寺院・神社を自動取得
-        await loadNearbyTemples(latitude, longitude);
-      },
-      (error) => {
-        console.log('Location error:', error);
-        Alert.alert(
-          '位置情報取得エラー',
-          '現在地を取得できませんでした。東京駅を中心に表示します。\n\n設定 > プライバシーとセキュリティ > 位置情報サービス から許可を確認してください。',
-          [{ text: 'OK' }]
-        );
-      },
-      { 
-        enableHighAccuracy: true,
-        timeout: 15000, // 15秒でタイムアウト
-        maximumAge: 60000 // 1分間キャッシュ
-      }
-    );
   };
 
-  const requestLocationPermission = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: '位置情報の許可',
-            message: '御朱印アプリが現在地を表示するために位置情報が必要です',
-            buttonNeutral: '後で確認',
-            buttonNegative: 'キャンセル',
-            buttonPositive: '許可',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn(err);
-        return false;
-      }
+  // 参拝記録の追加（神社・寺院情報付き）
+  const handleAddVisitFromShrine = async (visitData: Omit<VisitRecord, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newRecord = await LocalStorageService.createVisitRecord(visitData);
+      setVisitRecords(prev => [newRecord, ...prev]);
+      setShowAddVisitModal(false);
+      setSelectedShrineForVisit(null);
+      Alert.alert('登録完了', '参拝記録を登録しました');
+    } catch (error) {
+      console.error('Failed to add visit record:', error);
+      Alert.alert('エラー', '参拝記録の登録に失敗しました');
     }
-    return true;
   };
 
-  // 起動時に一度だけ位置情報取得を試行
+  // 位置情報が利用可能で許可されている場合のみ、5km圏内の寺院を自動取得
   useEffect(() => {
-    requestLocationAtStartup();
+    if (isLocationInitialized && currentLocation.isLocationPermissionGranted) {
+      console.log('HomeScreen: Location initialized, loading nearby temples');
+      loadNearbyTemples(currentLocation.latitude, currentLocation.longitude);
+    }
+    // 参拝記録も同時に読み込む
+    loadVisitRecords();
+  }, [isLocationInitialized, currentLocation]);
+
+  // アプリがフォーカスされた時に参拝記録を再読み込み（他の画面で削除された場合に対応）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadVisitRecords();
+    }, 5000); // 5秒ごとに更新
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSearch = async (filters: SearchFilters) => {
@@ -232,13 +218,23 @@ export const HomeScreen: React.FC = () => {
   };
 
   const handleMarkerPress = (shrine: ShrineTemple) => {
+    // 参拝ステータスを取得
+    const visitStatus = VisitStatusUtils.getVisitStatus(shrine, visitRecords);
+    
     const buttons = [
       { text: 'キャンセル', style: 'cancel' as const },
+      { 
+        text: visitStatus.isVisited ? '参拝記録を追加' : '参拝記録を作成',
+        onPress: () => {
+          setSelectedShrineForVisit(shrine);
+          setShowAddVisitModal(true);
+        }
+      },
       { text: '詳細を見る', onPress: () => handleCardPress(shrine) },
     ];
 
     if (shrine.photoUrl) {
-      buttons.splice(1, 0, {
+      buttons.splice(-1, 0, {
         text: '御朱印を見る',
         onPress: () => {
           setSelectedShrine(shrine);
@@ -249,7 +245,7 @@ export const HomeScreen: React.FC = () => {
 
     Alert.alert(
       shrine.name,
-      `${shrine.prefecture} ${shrine.city}\n${shrine.hasGoshuin ? '御朱印あり' : '御朱印なし'}`,
+      VisitStatusUtils.getStatusDescription(shrine, visitStatus),
       buttons
     );
   };
@@ -274,15 +270,33 @@ export const HomeScreen: React.FC = () => {
     <ShrineTempleCard
       shrineTemple={item}
       onPress={() => handleCardPress(item)}
+      visitRecords={visitRecords}
+      onAddVisit={(shrine) => {
+        setSelectedShrineForVisit(shrine);
+        setShowAddVisitModal(true);
+      }}
     />
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyText}>
-        現在地から5km圏内の神社・寺院が{'\n'}自動で表示されます{'\n\n'}
-        地名を検索してより詳しく{'\n'}探すこともできます
-      </Text>
+      {currentLocation.isLocationPermissionGranted ? (
+        <Text style={styles.emptyText}>
+          現在地から5km圏内の神社・寺院が{'\n'}自動で表示されます{'\n\n'}
+          地名を検索してより詳しく{'\n'}探すこともできます
+        </Text>
+      ) : (
+        <View>
+          <Text style={styles.emptyText}>
+            地名を検索して神社・寺院を{'\n'}探すことができます
+          </Text>
+          {currentLocation.locationError && (
+            <Text style={styles.locationError}>
+              {'\n'}位置情報: {currentLocation.locationError}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 
@@ -312,6 +326,54 @@ export const HomeScreen: React.FC = () => {
             🗺️ 地図
           </Text>
         </View>
+        {viewMode === 'map' && visitRecords.length > 0 && (
+          <View style={styles.pathToggleContainer}>
+            <View style={styles.mapControls}>
+              <Text
+                style={[styles.pathToggleButton, showVisitPaths && styles.activePathToggle]}
+                onPress={() => setShowVisitPaths(!showVisitPaths)}
+              >
+                {showVisitPaths ? '📍 経路非表示' : '🔗 参拝経路'}
+              </Text>
+              <Text
+                style={[styles.pathToggleButton, showStatistics && styles.activePathToggle]}
+                onPress={() => setShowStatistics(!showStatistics)}
+              >
+                {showStatistics ? '📈 統計非表示' : '📊 参拝統計'}
+              </Text>
+            </View>
+          </View>
+        )}
+        {viewMode === 'map' && showStatistics && visitRecords.length > 0 && (
+          <View style={styles.statisticsContainer}>
+            {(() => {
+              const stats = VisitStatusUtils.calculateVisitStatistics(shrineTemples, visitRecords);
+              return (
+                <View style={styles.statisticsContent}>
+                  <Text style={styles.statisticsTitle}>📊 参拝統計</Text>
+                  <View style={styles.statisticsRow}>
+                    <View style={styles.statisticsItem}>
+                      <Text style={styles.statisticsNumber}>{stats.visitedShrines}</Text>
+                      <Text style={styles.statisticsLabel}>参拝数</Text>
+                    </View>
+                    <View style={styles.statisticsItem}>
+                      <Text style={styles.statisticsNumber}>{stats.goshuinCollected}</Text>
+                      <Text style={styles.statisticsLabel}>御朱印</Text>
+                    </View>
+                    <View style={styles.statisticsItem}>
+                      <Text style={styles.statisticsNumber}>{stats.favoriteCount}</Text>
+                      <Text style={styles.statisticsLabel}>お気に入り</Text>
+                    </View>
+                    <View style={styles.statisticsItem}>
+                      <Text style={styles.statisticsNumber}>{stats.visitRate}%</Text>
+                      <Text style={styles.statisticsLabel}>達成率</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -336,6 +398,8 @@ export const HomeScreen: React.FC = () => {
             }}
             isOffline={networkError}
             mapRegion={mapRegion}
+            visitRecords={visitRecords}
+            showVisitPaths={showVisitPaths}
           />
         )}
       </View>
@@ -347,6 +411,16 @@ export const HomeScreen: React.FC = () => {
           setImageModalVisible(false);
           setSelectedShrine(null);
         }}
+      />
+
+      <AddVisitFromShrineModal
+        visible={showAddVisitModal}
+        shrineTemple={selectedShrineForVisit}
+        onClose={() => {
+          setShowAddVisitModal(false);
+          setSelectedShrineForVisit(null);
+        }}
+        onSave={handleAddVisitFromShrine}
       />
     </SafeAreaView>
   );
@@ -414,5 +488,74 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  locationError: {
+    fontSize: 12,
+    color: '#d32f2f',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  pathToggleContainer: {
+    marginTop: 8,
+  },
+  mapControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  pathToggleButton: {
+    flex: 1,
+    textAlign: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#007AFF',
+    backgroundColor: '#f0f8ff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  activePathToggle: {
+    backgroundColor: '#007AFF',
+    color: '#fff',
+  },
+  statisticsContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statisticsContent: {
+    padding: 12,
+  },
+  statisticsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  statisticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statisticsItem: {
+    alignItems: 'center',
+  },
+  statisticsNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  statisticsLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginTop: 2,
   },
 });

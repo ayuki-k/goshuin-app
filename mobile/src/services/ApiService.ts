@@ -1,4 +1,4 @@
-import { ShrineTemple, SearchFilters } from '../types';
+import { ShrineTemple, SearchFilters, VisitRecord } from '../types';
 
 const API_BASE_URL = 'http://localhost:3001'; // API Server endpoint
 
@@ -64,6 +64,32 @@ class ApiService {
       console.error('ApiService: Error getting nearby temples:', error);
       throw error;
     }
+  }
+
+  // Visit Records - ローカルストレージ使用 (Phase 1)
+  async getVisitRecords(): Promise<VisitRecord[]> {
+    // Note: Phase 1ではローカルストレージのみ使用
+    // Phase 2でクラウド同期機能を追加予定
+    console.log('ApiService: Visit records are now managed locally');
+    return [];
+  }
+
+  async createVisitRecord(visitData: Omit<VisitRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<VisitRecord> {
+    // Note: Phase 1ではローカルストレージのみ使用
+    console.log('ApiService: Visit records are now managed locally');
+    throw new Error('Use LocalStorageService for visit records');
+  }
+
+  async updateVisitRecord(id: string, visitData: Partial<Omit<VisitRecord, 'id' | 'createdAt' | 'updatedAt'>>): Promise<VisitRecord> {
+    // Note: Phase 1ではローカルストレージのみ使用
+    console.log('ApiService: Visit records are now managed locally');
+    throw new Error('Use LocalStorageService for visit records');
+  }
+
+  async deleteVisitRecord(id: string): Promise<void> {
+    // Note: Phase 1ではローカルストレージのみ使用
+    console.log('ApiService: Visit records are now managed locally');
+    throw new Error('Use LocalStorageService for visit records');
   }
 }
 

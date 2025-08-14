@@ -3,9 +3,14 @@ import {
   View,
   StyleSheet,
   Text,
+  TouchableOpacity,
 } from 'react-native';
-import MapView, { Marker, UrlTile, Circle } from 'react-native-maps';
-import { ShrineTemple } from '../types';
+import MapView, { Marker, UrlTile, Circle, Polyline } from 'react-native-maps';
+import { ShrineTemple, VisitRecord, VisitStatus } from '../types';
+import { VisitPathUtils, VisitPath } from '../utils/VisitPathUtils';
+import { VisitStatusUtils } from '../utils/VisitStatusUtils';
+import { VisitStatusMarker } from './VisitStatusMarker';
+import { MapLegend } from './MapLegend';
 
 interface SimpleMapProps {
   shrineTemples: ShrineTemple[];
@@ -23,6 +28,8 @@ interface SimpleMapProps {
     latitudeDelta: number;
     longitudeDelta: number;
   };
+  visitRecords?: VisitRecord[]; // 参拝記録（経路表示用）
+  showVisitPaths?: boolean; // 参拝経路の表示フラグ
 }
 
 export const SimpleMapView: React.FC<SimpleMapProps> = ({
@@ -31,14 +38,20 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
   initialRegion,
   isOffline = false,
   mapRegion,
+  visitRecords = [],
+  showVisitPaths = false,
 }) => {
-  const getMarkerColor = (shrineTemple: ShrineTemple): string => {
-    return shrineTemple.type === 'shrine' ? '#FF6B6B' : '#4ECDC4';
+  const getVisitStatus = (shrineTemple: ShrineTemple): VisitStatus => {
+    return VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords);
   };
 
-  const getMarkerTitle = (shrineTemple: ShrineTemple): string => {
-    const typeIcon = shrineTemple.type === 'shrine' ? '⛩️' : '🏯';
-    return `${typeIcon} ${shrineTemple.name}`;
+  const getMarkerColor = (shrineTemple: ShrineTemple, visitStatus: VisitStatus): string => {
+    return VisitStatusUtils.getMarkerColor(shrineTemple, visitStatus);
+  };
+
+  const getMarkerTitle = (shrineTemple: ShrineTemple, visitStatus: VisitStatus): string => {
+    const icon = VisitStatusUtils.getMarkerIcon(shrineTemple, visitStatus);
+    return `${icon} ${shrineTemple.name}`;
   };
 
   // 安全性チェック
@@ -55,6 +68,7 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
 
   // 現在の地図領域を管理
   const [currentRegion, setCurrentRegion] = React.useState(initialRegion);
+  const [showLegend, setShowLegend] = React.useState(false);
   
   // mapRegionが更新された時に地図を移動
   React.useEffect(() => {
@@ -64,7 +78,17 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
     }
   }, [mapRegion]);
 
-  console.log('SimpleMapView render: isOffline=', isOffline, 'region=', currentRegion);
+  // 参拝経路を計算
+  const visitPaths: VisitPath[] = React.useMemo(() => {
+    if (!showVisitPaths || visitRecords.length < 2) {
+      return [];
+    }
+    
+    console.log('SimpleMapView: Generating visit paths from', visitRecords.length, 'records');
+    return VisitPathUtils.generateVisitPaths(visitRecords, shrineTemples);
+  }, [showVisitPaths, visitRecords, shrineTemples]);
+
+  console.log('SimpleMapView render: isOffline=', isOffline, 'region=', currentRegion, 'paths=', visitPaths.length);
 
   return (
     <View style={styles.container}>
@@ -82,10 +106,9 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
         {/* OpenStreetMap タイル（オンライン時） */}
         {!isOffline && (
           <UrlTile
-            urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
             maximumZ={19}
             minimumZ={1}
-            subdomains={['a', 'b', 'c']}
             shouldReplaceMapContent={false}
             opacity={0.8}
           />
@@ -118,6 +141,20 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
           />
         )}
         
+        {/* 参拝経路の線 */}
+        {visitPaths.map((path) => (
+          <Polyline
+            key={path.id}
+            coordinates={path.points.map(point => ({
+              latitude: point.latitude,
+              longitude: point.longitude,
+            }))}
+            strokeColor={path.color}
+            strokeWidth={3}
+            lineDashPattern={[5, 5]} // 破線スタイル
+          />
+        ))}
+
         {/* 神社・寺院マーカー */}
         {Array.isArray(shrineTemples) && shrineTemples
           .filter(shrine => shrine && shrine.lat && shrine.lng && shrine.id)
@@ -130,6 +167,9 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
                 console.warn('Invalid coordinates for shrine:', shrine.id, lat, lng);
                 return null;
               }
+
+              // この神社・寺院の参拝ステータスを取得
+              const visitStatus = getVisitStatus(shrine);
               
               return (
                 <Marker
@@ -138,11 +178,15 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
                     latitude: lat,
                     longitude: lng,
                   }}
-                  title={getMarkerTitle(shrine)}
-                  description={shrine.address || `${shrine.prefecture || ''} ${shrine.city || ''}`}
-                  pinColor={getMarkerColor(shrine)}
+                  title={getMarkerTitle(shrine, visitStatus)}
+                  description={VisitStatusUtils.getStatusDescription(shrine, visitStatus)}
                   onPress={() => onMarkerPress?.(shrine)}
-                />
+                >
+                  <VisitStatusMarker
+                    shrineTemple={shrine}
+                    visitStatus={visitStatus}
+                  />
+                </Marker>
               );
             } catch (error) {
               console.error('Error rendering marker for shrine:', shrine.id, error);
@@ -150,7 +194,32 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
             }
           })
           .filter(Boolean)}
+
+        {/* 参拝順序番号マーカー */}
+        {showVisitPaths && visitPaths.flatMap(path =>
+          path.points.map((point, index) => (
+            <Marker
+              key={`order-${path.id}-${point.visitRecord.id}`}
+              coordinate={{
+                latitude: point.latitude,
+                longitude: point.longitude,
+              }}
+              title={`${point.order}. ${point.shrineTemple?.name || point.visitRecord.shrineTempleName}`}
+              description={`参拝日: ${point.visitDate}`}
+            >
+              <View style={styles.orderMarker}>
+                <Text style={styles.orderText}>{point.order}</Text>
+              </View>
+            </Marker>
+          ))
+        )}
       </MapView>
+      
+      {/* 凡例 */}
+      <MapLegend
+        visible={showLegend}
+        onToggle={() => setShowLegend(!showLegend)}
+      />
     </View>
   );
 };
@@ -172,5 +241,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  orderMarker: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  orderText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

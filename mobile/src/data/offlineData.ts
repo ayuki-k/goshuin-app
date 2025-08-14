@@ -14,6 +14,8 @@ export const offlineShrineTemples: ShrineTemple[] = [
     address: '東京都台東区浅草2-3-1',
     hours_notes: '6:00-17:00',
     officialUrl: 'https://www.senso-ji.jp/',
+    source: 'offline',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'offline-2',
@@ -27,6 +29,8 @@ export const offlineShrineTemples: ShrineTemple[] = [
     address: '東京都渋谷区代々木神園町1-1',
     hours_notes: '日の出-日没',
     officialUrl: 'https://www.meijijingu.or.jp/',
+    source: 'offline',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'offline-3',
@@ -39,6 +43,8 @@ export const offlineShrineTemples: ShrineTemple[] = [
     lng: 139.5563,
     address: '神奈川県鎌倉市雪ノ下2-1-31',
     hours_notes: '5:00-21:00',
+    source: 'offline',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'offline-4',
@@ -51,6 +57,8 @@ export const offlineShrineTemples: ShrineTemple[] = [
     lng: 135.7851,
     address: '京都府京都市東山区清水1-294',
     hours_notes: '6:00-18:00',
+    source: 'offline',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'offline-5',
@@ -63,5 +71,7 @@ export const offlineShrineTemples: ShrineTemple[] = [
     lng: 135.4970,
     address: '大阪府大阪市住吉区住吉2-9-89',
     hours_notes: '6:00-17:00',
+    source: 'offline',
+    updatedAt: new Date().toISOString(),
   },
 ];

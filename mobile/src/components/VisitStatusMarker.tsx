@@ -5,71 +5,45 @@ import {
   StyleSheet,
 } from 'react-native';
 import { ShrineTemple, VisitStatus } from '../types';
+import { VisitStatusUtils, ExtendedVisitStatus } from '../utils/VisitStatusUtils';
 
 interface VisitStatusMarkerProps {
   shrineTemple: ShrineTemple;
-  visitStatus: VisitStatus;
+  visitStatus: ExtendedVisitStatus;
 }
 
 export const VisitStatusMarker: React.FC<VisitStatusMarkerProps> = ({
   shrineTemple,
   visitStatus,
 }) => {
-  // 参拝ステータスに応じたスタイルを取得
+  // 新しい分離設計に基づくスタイル取得
   const getMarkerStyle = () => {
+    const backgroundColor = VisitStatusUtils.getMarkerColor(shrineTemple, visitStatus);
+    
+    // ボーダー色の決定
+    let borderColor = '#ddd';
     if (!visitStatus.isVisited) {
-      // 未参拝: デフォルトカラー（少し薄く）
-      return {
-        backgroundColor: shrineTemple.type === 'shrine' ? '#ffebee' : '#e0f2f1',
-        borderColor: shrineTemple.type === 'shrine' ? '#FF6B6B' : '#4ECDC4',
-      };
+      if (visitStatus.isFavoriteIndependent) {
+        borderColor = '#FF69B4'; // お気に入りピンク
+      } else {
+        borderColor = shrineTemple.type === 'shrine' ? '#FF6B6B' : '#4ECDC4';
+      }
+    } else if (visitStatus.hasGoshuin) {
+      borderColor = '#FFD700'; // 金色
+    } else {
+      borderColor = '#28a745'; // 緑
     }
 
-    // 参拝済み: より鮮やかな色
-    if (visitStatus.hasGoshuin) {
-      return {
-        backgroundColor: '#fff8e1', // 薄い金色背景
-        borderColor: '#FFD700', // 金色ボーダー
-      };
-    }
-
-    if (visitStatus.isFavorite) {
-      return {
-        backgroundColor: '#fce4ec', // 薄いピンク背景
-        borderColor: '#FF69B4', // ピンクボーダー
-      };
-    }
-
-    // 参拝済み: 薄い緑背景
-    return {
-      backgroundColor: '#e8f5e8',
-      borderColor: '#28a745',
-    };
+    return { backgroundColor, borderColor };
   };
 
   // メインアイコンは常に神社・寺院アイコン
-  const getMainIcon = () => {
-    return shrineTemple.type === 'shrine' ? '⛩️' : '🏯';
-  };
-
-  // 参拝ステータスバッジを取得（優先順位: 御朱印 > お気に入り > 参拝済み）
-  const getStatusBadge = () => {
-    if (!visitStatus.isVisited) return null;
-
-    if (visitStatus.hasGoshuin) {
-      return '🏅'; // 御朱印取得済み
-    }
-    
-    if (visitStatus.isFavorite) {
-      return '❤️'; // お気に入り
-    }
-
-    return '✅'; // 参拝済み
-  };
+  const mainIcon = VisitStatusUtils.getMainIcon(shrineTemple);
+  
+  // 複数のバッジを取得
+  const statusBadges = VisitStatusUtils.getStatusBadges(visitStatus);
 
   const markerStyle = getMarkerStyle();
-  const mainIcon = getMainIcon();
-  const statusBadge = getStatusBadge();
 
   return (
     <View style={styles.container}>
@@ -82,12 +56,21 @@ export const VisitStatusMarker: React.FC<VisitStatusMarkerProps> = ({
         }
       ]}>
         <Text style={styles.mainIcon}>{mainIcon}</Text>
+        
+        {/* お気に入りハートを右下角に表示 */}
+        {visitStatus.isFavoriteIndependent && (
+          <View style={styles.favoriteOverlay}>
+            <Text style={styles.favoriteOverlayIcon}>❤️</Text>
+          </View>
+        )}
       </View>
 
-      {/* ステータスバッジ（参拝済みの場合のみ） */}
-      {statusBadge && (
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>{statusBadge}</Text>
+      {/* 参拝関連のバッジ（参拝済みの場合のみ右上に表示） */}
+      {visitStatus.isVisited && (
+        <View style={styles.visitBadge}>
+          <Text style={styles.visitBadgeText}>
+            {visitStatus.hasGoshuin ? '🏅' : '✅'}
+          </Text>
         </View>
       )}
 
@@ -125,7 +108,19 @@ const styles = StyleSheet.create({
   mainIcon: {
     fontSize: 18,
   },
-  statusBadge: {
+  favoriteOverlay: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    zIndex: 1,
+  },
+  favoriteOverlayIcon: {
+    fontSize: 12,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
+  },
+  visitBadge: {
     position: 'absolute',
     top: -6,
     right: -6,
@@ -146,7 +141,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
   },
-  statusBadgeText: {
+  visitBadgeText: {
     fontSize: 10,
   },
   countBadge: {

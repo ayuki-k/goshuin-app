@@ -10,13 +10,16 @@ import {
   Dimensions,
 } from 'react-native';
 import { ShrineTemple, VisitRecord, VisitStatus } from '../types';
-import { VisitStatusUtils } from '../utils/VisitStatusUtils';
+import { VisitStatusUtils, ExtendedVisitStatus } from '../utils/VisitStatusUtils';
+import { FavoriteItem } from '../services/FavoriteStorageService';
 
 interface ShrineTempleCardProps {
   shrineTemple: ShrineTemple;
   onPress?: () => void;
   visitRecords?: VisitRecord[];
+  favorites?: FavoriteItem[];
   onAddVisit?: (shrine: ShrineTemple) => void;
+  onToggleFavorite?: (shrine: ShrineTemple) => void;
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -25,13 +28,15 @@ export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
   shrineTemple,
   onPress,
   visitRecords = [],
+  favorites = [],
   onAddVisit,
+  onToggleFavorite,
 }) => {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  // 参拝ステータスを取得
-  const visitStatus: VisitStatus = VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords);
+  // 新しい分離設計に基づく参拝ステータスを取得
+  const visitStatus: ExtendedVisitStatus = VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords, favorites);
   const getTypeIcon = (type: string) => {
     return type === 'shrine' ? '⛩️' : '🏯';
   };
@@ -73,17 +78,23 @@ export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
       <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Text style={styles.icon}>{VisitStatusUtils.getMarkerIcon(shrineTemple, visitStatus)}</Text>
+          <Text style={styles.icon}>{VisitStatusUtils.getMainIcon(shrineTemple)}</Text>
           <View style={styles.nameContainer}>
             <Text style={styles.name}>{shrineTemple.name}</Text>
             <Text style={styles.type}>{getTypeText(shrineTemple.type)}</Text>
-            {visitStatus.isVisited && (
-              <Text style={styles.visitStatus}>
-                {visitStatus.hasGoshuin ? '🏅 御朱印取得済み' : '✅ 参拝済み'}
-                {visitStatus.isFavorite && ' ❤️'}
-                {visitStatus.visitCount > 1 && ` (${visitStatus.visitCount}回)`}
-              </Text>
-            )}
+            
+            {/* ステータス表示 */}
+            <View style={styles.statusContainer}>
+              {visitStatus.isFavoriteIndependent && (
+                <Text style={styles.favoriteStatus}>❤️ お気に入り</Text>
+              )}
+              {visitStatus.isVisited && (
+                <Text style={styles.visitStatus}>
+                  {visitStatus.hasGoshuin ? '🏅 御朱印取得済み' : '✅ 参拝済み'}
+                  {visitStatus.visitCount > 1 && ` (${visitStatus.visitCount}回)`}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
         
@@ -132,19 +143,41 @@ export const ShrineTempleCard: React.FC<ShrineTempleCardProps> = ({
           )}
         </View>
         
-        {onAddVisit && (
-          <TouchableOpacity
-            style={styles.addVisitButton}
-            onPress={(e) => {
-              e.stopPropagation(); // カード全体のonPressを止める
-              onAddVisit(shrineTemple);
-            }}
-          >
-            <Text style={styles.addVisitButtonText}>
-              {visitStatus.isVisited ? '+記録' : '参拝記録'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.buttonContainer}>
+          {onToggleFavorite && (
+            <TouchableOpacity
+              style={[
+                styles.favoriteButton,
+                visitStatus.isFavoriteIndependent && styles.favoriteButtonActive
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(shrineTemple);
+              }}
+            >
+              <Text style={[
+                styles.favoriteButtonText,
+                visitStatus.isFavoriteIndependent && styles.favoriteButtonTextActive
+              ]}>
+                {visitStatus.isFavoriteIndependent ? '❤️' : '🤍'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          
+          {onAddVisit && (
+            <TouchableOpacity
+              style={styles.addVisitButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onAddVisit(shrineTemple);
+              }}
+            >
+              <Text style={styles.addVisitButtonText}>
+                {visitStatus.isVisited ? '+記録' : '参拝記録'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {renderGoshuinImage()}
@@ -247,10 +280,20 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  statusContainer: {
+    marginTop: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  favoriteStatus: {
+    fontSize: 11,
+    color: '#FF69B4',
+    fontWeight: '500',
+  },
   visitStatus: {
     fontSize: 11,
     color: '#007AFF',
-    marginTop: 2,
     fontWeight: '500',
   },
   goshuinBadge: {
@@ -307,12 +350,33 @@ const styles = StyleSheet.create({
   footerLeft: {
     flex: 1,
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  favoriteButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  favoriteButtonActive: {
+    backgroundColor: '#fce4ec',
+    borderColor: '#FF69B4',
+  },
+  favoriteButtonText: {
+    fontSize: 14,
+  },
+  favoriteButtonTextActive: {
+    fontSize: 14,
+  },
   addVisitButton: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    marginLeft: 8,
   },
   addVisitButtonText: {
     color: '#fff',

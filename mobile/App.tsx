@@ -11,6 +11,7 @@ import Geolocation from 'react-native-geolocation-service';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { VisitRecordsScreen } from './src/screens/VisitRecordsScreen';
 import LocalStorageService from './src/services/LocalStorageService';
+import { SearchFilters } from './src/types';
 
 // エラーバウンダリーコンポーネント
 class ErrorBoundary extends React.Component<
@@ -75,6 +76,9 @@ function App() {
     locationError: undefined,
   });
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
+  
+  // 検索状態をアプリレベルで管理
+  const [lastSearchFilters, setLastSearchFilters] = useState<SearchFilters | null>(null);
 
   console.log('App: Starting render');
 
@@ -175,6 +179,8 @@ function App() {
           <HomeScreen 
             currentLocation={location}
             isLocationInitialized={isLocationInitialized}
+            lastSearchFilters={lastSearchFilters}
+            onSearchFiltersChange={setLastSearchFilters}
           />
         );
       case 'records':
@@ -195,6 +201,8 @@ function App() {
           <HomeScreen 
             currentLocation={location}
             isLocationInitialized={isLocationInitialized}
+            lastSearchFilters={lastSearchFilters}
+            onSearchFiltersChange={setLastSearchFilters}
           />
         );
     }

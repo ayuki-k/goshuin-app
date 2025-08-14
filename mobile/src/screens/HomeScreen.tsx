@@ -15,7 +15,8 @@ import { AddVisitFromShrineModal } from '../components/AddVisitFromShrineModal';
 import { ShrineTemple, SearchFilters, VisitRecord } from '../types';
 import { apiService } from '../services/ApiService';
 import LocalStorageService from '../services/LocalStorageService';
-import { VisitStatusUtils } from '../utils/VisitStatusUtils';
+import FavoriteStorageService, { FavoriteItem } from '../services/FavoriteStorageService';
+import { VisitStatusUtils, ExtendedVisitStatus } from '../utils/VisitStatusUtils';
 
 type ViewMode = 'list' | 'map';
 
@@ -29,11 +30,15 @@ interface LocationState {
 interface HomeScreenProps {
   currentLocation: LocationState;
   isLocationInitialized: boolean;
+  lastSearchFilters?: SearchFilters | null;
+  onSearchFiltersChange?: (filters: SearchFilters | null) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   currentLocation,
   isLocationInitialized,
+  lastSearchFilters,
+  onSearchFiltersChange,
 }) => {
   const [shrineTemples, setShrineTemples] = useState<ShrineTemple[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,6 +47,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [networkError, setNetworkError] = useState(false);
   const [visitRecords, setVisitRecords] = useState<VisitRecord[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [showVisitPaths, setShowVisitPaths] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
   const [showAddVisitModal, setShowAddVisitModal] = useState(false);
@@ -124,6 +130,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
+  // お気に入りの取得
+  const loadFavorites = async () => {
+    try {
+      const favs = await FavoriteStorageService.getFavorites();
+      setFavorites(favs);
+      console.log(`HomeScreen: Loaded ${favs.length} favorites`);
+    } catch (error) {
+      console.error('HomeScreen: Error loading favorites:', error);
+    }
+  };
+
   // 参拝記録の追加（神社・寺院情報付き）
   const handleAddVisitFromShrine = async (visitData: Omit<VisitRecord, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -132,27 +149,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       setShowAddVisitModal(false);
       setSelectedShrineForVisit(null);
       Alert.alert('登録完了', '参拝記録を登録しました');
+      // 検索結果は保持し、参拝記録とお気に入りのみ更新
+      await loadVisitRecords();
+      await loadFavorites();
     } catch (error) {
       console.error('Failed to add visit record:', error);
       Alert.alert('エラー', '参拝記録の登録に失敗しました');
     }
   };
 
+  // 初回読み込み時のデータ取得
+  useEffect(() => {
+    console.log('HomeScreen: Initial data load');
+    loadVisitRecords();
+    loadFavorites();
+  }, []);
+
   // 位置情報が利用可能で許可されている場合のみ、5km圏内の寺院を自動取得
   useEffect(() => {
-    if (isLocationInitialized && currentLocation.isLocationPermissionGranted) {
-      console.log('HomeScreen: Location initialized, loading nearby temples');
+    if (isLocationInitialized && currentLocation.isLocationPermissionGranted && shrineTemples.length === 0) {
+      console.log('HomeScreen: Location initialized, loading nearby temples (no existing search results)');
       loadNearbyTemples(currentLocation.latitude, currentLocation.longitude);
     }
-    // 参拝記録も同時に読み込む
-    loadVisitRecords();
-  }, [isLocationInitialized, currentLocation]);
+  }, [isLocationInitialized, currentLocation, shrineTemples.length]);
 
-  // アプリがフォーカスされた時に参拝記録を再読み込み（他の画面で削除された場合に対応）
+  // 定期的なデータ更新（検索結果は保持）
   useEffect(() => {
     const interval = setInterval(() => {
+      // 参拝記録とお気に入りのみ更新（検索結果は保持）
       loadVisitRecords();
-    }, 5000); // 5秒ごとに更新
+      loadFavorites();
+    }, 30000); // 30秒ごとに更新（頻度をさらに下げる）
 
     return () => clearInterval(interval);
   }, []);
@@ -160,6 +187,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const handleSearch = async (filters: SearchFilters) => {
     setLoading(true);
     try {
+      // 検索フィルターを保存（App.tsxレベル）
+      onSearchFiltersChange?.(filters);
+      
       // 現在地付近検索の場合（テキスト入力なし）
       if (filters.isNearbySearch) {
         console.log('Nearby search: showing temples within 5km of current location');
@@ -218,23 +248,60 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const handleMarkerPress = (shrine: ShrineTemple) => {
-    // 参拝ステータスを取得
-    const visitStatus = VisitStatusUtils.getVisitStatus(shrine, visitRecords);
+    // 新しい分離設計に基づく参拝ステータスを取得
+    const visitStatus = VisitStatusUtils.getVisitStatus(shrine, visitRecords, favorites);
     
-    const buttons = [
-      { text: 'キャンセル', style: 'cancel' as const },
-      { 
-        text: visitStatus.isVisited ? '参拝記録を追加' : '参拝記録を作成',
-        onPress: () => {
-          setSelectedShrineForVisit(shrine);
-          setShowAddVisitModal(true);
-        }
-      },
-      { text: '詳細を見る', onPress: () => handleCardPress(shrine) },
+    const buttons: Array<{
+      text: string;
+      style?: 'default' | 'cancel' | 'destructive';
+      onPress?: () => void;
+    }> = [
+      { text: 'キャンセル', style: 'cancel' },
     ];
 
+    // お気に入り操作ボタン
+    if (visitStatus.isFavoriteIndependent) {
+      buttons.push({
+        text: '❤️ お気に入りから削除',
+        onPress: async () => {
+          try {
+            await FavoriteStorageService.removeFavorite(shrine.id);
+            // 検索結果は保持し、お気に入りのみ更新
+            await loadFavorites();
+            Alert.alert('削除完了', 'お気に入りから削除しました');
+          } catch (error) {
+            Alert.alert('エラー', 'お気に入りの削除に失敗しました');
+          }
+        }
+      });
+    } else {
+      buttons.push({
+        text: '❤️ お気に入りに追加',
+        onPress: async () => {
+          try {
+            await FavoriteStorageService.addFavorite(shrine);
+            // 検索結果は保持し、お気に入りのみ更新
+            await loadFavorites();
+            Alert.alert('追加完了', 'お気に入りに追加しました');
+          } catch (error) {
+            Alert.alert('エラー', 'お気に入りの追加に失敗しました');
+          }
+        }
+      });
+    }
+
+    // 参拝記録操作ボタン
+    buttons.push({
+      text: visitStatus.isVisited ? '参拝記録を追加' : '参拝記録を作成',
+      onPress: () => {
+        setSelectedShrineForVisit(shrine);
+        setShowAddVisitModal(true);
+      }
+    });
+
+    // 御朱印表示ボタン
     if (shrine.photoUrl) {
-      buttons.splice(-1, 0, {
+      buttons.push({
         text: '御朱印を見る',
         onPress: () => {
           setSelectedShrine(shrine);
@@ -242,6 +309,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         },
       });
     }
+
+    // 詳細表示ボタン
+    buttons.push({ text: '詳細を見る', onPress: () => handleCardPress(shrine) });
 
     Alert.alert(
       shrine.name,
@@ -271,9 +341,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       shrineTemple={item}
       onPress={() => handleCardPress(item)}
       visitRecords={visitRecords}
+      favorites={favorites}
       onAddVisit={(shrine) => {
         setSelectedShrineForVisit(shrine);
         setShowAddVisitModal(true);
+      }}
+      onToggleFavorite={async (shrine) => {
+        const isFav = await FavoriteStorageService.isFavorite(shrine.id);
+        try {
+          if (isFav) {
+            await FavoriteStorageService.removeFavorite(shrine.id);
+          } else {
+            await FavoriteStorageService.addFavorite(shrine);
+          }
+          // 検索結果は保持し、お気に入りのみ更新
+          await loadFavorites();
+        } catch (error) {
+          Alert.alert('エラー', 'お気に入りの更新に失敗しました');
+        }
       }}
     />
   );
@@ -302,7 +387,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container}>
-      <SearchBar onSearch={handleSearch} loading={loading} />
+      <SearchBar 
+        onSearch={handleSearch} 
+        loading={loading} 
+        lastSearchFilters={lastSearchFilters}
+      />
       
       <View style={styles.toggleContainer}>
         {networkError && (
@@ -344,10 +433,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
           </View>
         )}
-        {viewMode === 'map' && showStatistics && visitRecords.length > 0 && (
+        {viewMode === 'map' && showStatistics && (visitRecords.length > 0 || favorites.length > 0) && (
           <View style={styles.statisticsContainer}>
             {(() => {
-              const stats = VisitStatusUtils.calculateVisitStatistics(shrineTemples, visitRecords);
+              const stats = VisitStatusUtils.calculateVisitStatistics(shrineTemples, visitRecords, favorites);
               return (
                 <View style={styles.statisticsContent}>
                   <Text style={styles.statisticsTitle}>📊 参拝統計</Text>
@@ -399,6 +488,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             isOffline={networkError}
             mapRegion={mapRegion}
             visitRecords={visitRecords}
+            favorites={favorites}
             showVisitPaths={showVisitPaths}
           />
         )}

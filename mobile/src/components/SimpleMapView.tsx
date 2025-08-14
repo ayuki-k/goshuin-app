@@ -8,9 +8,10 @@ import {
 import MapView, { Marker, UrlTile, Circle, Polyline } from 'react-native-maps';
 import { ShrineTemple, VisitRecord, VisitStatus } from '../types';
 import { VisitPathUtils, VisitPath } from '../utils/VisitPathUtils';
-import { VisitStatusUtils } from '../utils/VisitStatusUtils';
+import { VisitStatusUtils, ExtendedVisitStatus } from '../utils/VisitStatusUtils';
 import { VisitStatusMarker } from './VisitStatusMarker';
 import { MapLegend } from './MapLegend';
+import { FavoriteItem } from '../services/FavoriteStorageService';
 
 interface SimpleMapProps {
   shrineTemples: ShrineTemple[];
@@ -29,6 +30,7 @@ interface SimpleMapProps {
     longitudeDelta: number;
   };
   visitRecords?: VisitRecord[]; // 参拝記録（経路表示用）
+  favorites?: FavoriteItem[]; // お気に入り記録
   showVisitPaths?: boolean; // 参拝経路の表示フラグ
 }
 
@@ -39,19 +41,22 @@ export const SimpleMapView: React.FC<SimpleMapProps> = ({
   isOffline = false,
   mapRegion,
   visitRecords = [],
+  favorites = [],
   showVisitPaths = false,
 }) => {
-  const getVisitStatus = (shrineTemple: ShrineTemple): VisitStatus => {
-    return VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords);
+  const getVisitStatus = (shrineTemple: ShrineTemple): ExtendedVisitStatus => {
+    return VisitStatusUtils.getVisitStatus(shrineTemple, visitRecords, favorites);
   };
 
-  const getMarkerColor = (shrineTemple: ShrineTemple, visitStatus: VisitStatus): string => {
+  const getMarkerColor = (shrineTemple: ShrineTemple, visitStatus: ExtendedVisitStatus): string => {
     return VisitStatusUtils.getMarkerColor(shrineTemple, visitStatus);
   };
 
-  const getMarkerTitle = (shrineTemple: ShrineTemple, visitStatus: VisitStatus): string => {
-    const icon = VisitStatusUtils.getMarkerIcon(shrineTemple, visitStatus);
-    return `${icon} ${shrineTemple.name}`;
+  const getMarkerTitle = (shrineTemple: ShrineTemple, visitStatus: ExtendedVisitStatus): string => {
+    const mainIcon = VisitStatusUtils.getMainIcon(shrineTemple);
+    const badges = VisitStatusUtils.getStatusBadges(visitStatus);
+    const badgeText = badges.length > 0 ? badges.join('') : '';
+    return `${mainIcon}${badgeText} ${shrineTemple.name}`;
   };
 
   // 安全性チェック

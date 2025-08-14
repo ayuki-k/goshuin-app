@@ -71,11 +71,24 @@ export const MapLegend: React.FC<MapLegendProps> = ({
           <View style={styles.legendItem}>
             <View style={[styles.legendIcon, { backgroundColor: '#fce4ec' }]}>
               <Text style={styles.iconText}>⛩️</Text>
-              <View style={styles.miniLegendBadge}>
-                <Text style={styles.miniBadgeText}>❤️</Text>
+              <View style={styles.heartOverlay}>
+                <Text style={styles.heartOverlayText}>❤️</Text>
               </View>
             </View>
-            <Text style={styles.legendLabel}>お気に入り</Text>
+            <Text style={styles.legendLabel}>お気に入り（未参拝）</Text>
+          </View>
+          
+          <View style={styles.legendItem}>
+            <View style={[styles.legendIcon, { backgroundColor: '#e8f5e8' }]}>
+              <Text style={styles.iconText}>⛩️</Text>
+              <View style={styles.heartOverlay}>
+                <Text style={styles.heartOverlayText}>❤️</Text>
+              </View>
+              <View style={styles.miniLegendBadge}>
+                <Text style={styles.miniBadgeText}>✅</Text>
+              </View>
+            </View>
+            <Text style={styles.legendLabel}>お気に入り + 参拝済み</Text>
           </View>
           
           <View style={styles.noteContainer}>
@@ -199,5 +212,17 @@ const styles = StyleSheet.create({
   },
   miniBadgeText: {
     fontSize: 6,
+  },
+  heartOverlay: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    zIndex: 1,
+  },
+  heartOverlayText: {
+    fontSize: 8,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 1,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -11,11 +11,36 @@ import { SearchFilters } from '../types';
 interface SearchBarProps {
   onSearch: (filters: SearchFilters) => void;
   loading?: boolean;
+  lastSearchFilters?: SearchFilters | null;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, loading = false }) => {
+export const SearchBar: React.FC<SearchBarProps> = ({ 
+  onSearch, 
+  loading = false, 
+  lastSearchFilters = null 
+}) => {
   const [searchText, setSearchText] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'shrine' | 'temple'>('all');
+
+  // 最後の検索状態を復元
+  useEffect(() => {
+    if (lastSearchFilters) {
+      console.log('SearchBar: Restoring last search filters:', lastSearchFilters);
+      
+      // 種別を復元
+      setSelectedType(lastSearchFilters.type || 'all');
+      
+      // 検索テキストを復元（prefecture + city）
+      if (!lastSearchFilters.isNearbySearch) {
+        const parts = [];
+        if (lastSearchFilters.prefecture) parts.push(lastSearchFilters.prefecture);
+        if (lastSearchFilters.city) parts.push(lastSearchFilters.city);
+        setSearchText(parts.join(' '));
+      } else {
+        setSearchText(''); // 近くの検索の場合は空にする
+      }
+    }
+  }, [lastSearchFilters]);
 
   const handleSearch = () => {
     const filters: SearchFilters = {
